@@ -23,6 +23,8 @@
  */
 package pl.betoncraft.flier.effect;
 
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 
@@ -46,9 +48,25 @@ public abstract class SoundEffect extends DefaultEffect {
 	public SoundEffect(ConfigurationSection section) throws LoadingException {
 		super(section);
 		playerOnly();
-		sound = loader.loadEnum(SOUND, Sound.class);
+		sound = loadSound(section);
 		volume = (float) loader.loadPositiveDouble(VOLUME, 1.0);
 		pitch = (float) loader.loadPositiveDouble(PITCH, 1.0);
+	}
+	
+	/**
+	 * Loads a Sound by name, supporting both the legacy enum-style names
+	 * (ENTITY_PLAYER_LEVELUP) and the modern key-style names
+	 * (entity.player.levelup).
+	 */
+	private Sound loadSound(ConfigurationSection section) throws LoadingException {
+		String name = loader.loadString(SOUND);
+		// normalize: lowercase, underscores to dots (entity.player.levelup)
+		String key = name.toLowerCase().replace('_', '.');
+		Sound sound = Registry.SOUNDS.get(NamespacedKey.minecraft(key));
+		if (sound == null) {
+			throw new LoadingException(String.format("Sound '%s' does not exist.", name));
+		}
+		return sound;
 	}
 
 }

@@ -31,19 +31,19 @@ import pl.betoncraft.flier.api.core.DatabaseManager;
 import pl.betoncraft.flier.api.core.InGamePlayer;
 import pl.betoncraft.flier.api.core.UsableItem;
 import pl.betoncraft.flier.database.Database;
-import pl.betoncraft.flier.database.MySQL;
 import pl.betoncraft.flier.database.SQLite;
 import pl.betoncraft.flier.event.FlierPlayerKillEvent.KillType;
 
 import java.io.File;
+import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.Date;
-import java.util.logging.Logger;
 
 /**
  * Manages the database connection, table creation and queries.
+ * SQLite only since version 1.0.0.
  *
  * @author Jakub Sapalski
  */
@@ -53,55 +53,50 @@ public class DefaultDatabaseManager implements DatabaseManager {
     private Database db;
 
     public DefaultDatabaseManager() {
-
-        // prepare required stuff
-        ConfigurationSection dbSection = Flier.getInstance().getConfig().getConfigurationSection("database");
-//		String prefix = dbSection.getString("prefix", "flier_");
-        boolean mysql = dbSection.getBoolean("mysql");
-
-        // connect to the database
-        if (mysql) {
-            db = new MySQL(
-                    dbSection.getString("host"),
-                    dbSection.getString("port"),
-                    dbSection.getString("base"),
-                    dbSection.getString("user"),
-                    dbSection.getString("pass"));
-        } else {
-            db = new SQLite(Flier.getInstance().getDataFolder().getPath() + File.separator + "database.db");
-        }
+        Flier flier = Flier.getInstance();
+        db = new SQLite(flier.getDataFolder().getPath() + File.separator + "database.db");
 
         // check if the connection was successful
         try {
             db.execute("SELECT 1");
         } catch (SQLException e) {
-            // problem with connecting
-            Logger logger = Flier.getInstance().getLogger();
-            logger.warning("Could not connect to " + (mysql ? "MySQL" : "SQLite") + " database: " + e.getMessage());
+            flier.getLogger().warning("Could not connect to SQLite database: " + e.getMessage());
+            try {
+                db.disconnect();
+            } catch (SQLException ignored) {
+            }
             return;
         }
 
         // load queries
-        ConfigurationSection queries = YamlConfiguration.loadConfiguration(
-                new InputStreamReader(Flier.getInstance().getResource("queries.yml"), Charset.forName("UTF-8")));
-        ConfigurationSection mysqlQueries = queries.getConfigurationSection("mysql");
-        ConfigurationSection sqliteQueries = queries.getConfigurationSection("sqlite");
+        ConfigurationSection queries;
+        try (InputStream in = flier.getResource("queries.yml")) {
+            if (in == null) {
+                flier.getLogger().warning("Could not find queries.yml inside the plugin jar.");
+                return;
+            }
+            queries = YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
+        } catch (java.io.IOException e) {
+            flier.getLogger().warning("Could not read queries.yml: " + e.getMessage());
+            return;
+        }
 
         try {
             // create tables
-            db.execute(mysqlQueries.getString("create_kills"), sqliteQueries.getString("create_kills"));
+            db.execute(queries.getString("create_kills"));
             // register loaded statements
-            for (String key : mysqlQueries.getKeys(false)) {
-                db.registerStatement(key, mysqlQueries.getString(key), sqliteQueries.getString(key));
+            for (String key : queries.getKeys(false)) {
+                db.registerStatement(key, queries.getString(key));
             }
         } catch (SQLException e) {
             // error in SQL syntax
             e.printStackTrace();
+            return;
         }
 
         // schedule connection pinger to keep it alive
         Bukkit.getScheduler().runTaskTimerAsynchronously(
-                Flier.getInstance(), () -> {
+                flier, () -> {
                     try {
                         db.query("ping", new Object[0]);
                     } catch (SQLException e) {

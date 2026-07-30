@@ -24,75 +24,66 @@
 package pl.betoncraft.flier.util;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 
-import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Player;
 
-import pl.betoncraft.betonlangapi.BetonLangAPI;
-import pl.betoncraft.betonlangapi.TranslatedPlugin;
 import pl.betoncraft.flier.api.Flier;
 import pl.betoncraft.flier.api.core.InGamePlayer;
 import pl.betoncraft.flier.api.core.LoadingException;
 
 /**
- * Manages languages.
+ * Manages languages. Single-language mode: the language is defined globally
+ * in config.yml ("language" option) and used for all players.
  *
  * @author Jakub Sapalski
  */
 public class LangManager {
 
 	private static LangManager instance;
-	private boolean api = false;
 	private String lang;
 	private ConfigurationSection messages;
-	private Flier flier = Flier.getInstance();
+	private final Flier flier = Flier.getInstance();
 
 	/**
 	 * Creates new language manager. Needs to be reloaded before use.
-	 * 
-	 * @throws LoadingException
 	 */
 	public LangManager() {
 		instance = this;
-		if (Bukkit.getPluginManager().isPluginEnabled("BetonLangAPI")) {
-			BetonLangAPI.registerPlugin(flier, new TranslatedPlugin(flier, "en"));
-			api = true;
-		}
 	}
 	
 	/**
 	 * Reloads the messages.
 	 */
-	public static void reload() throws LoadingException  {
+	public static void reload() throws LoadingException {
 		File file = new File(instance.flier.getDataFolder(), "messages.yml");
 		if (!file.exists()) {
-			try {
-				file.createNewFile();
-				FileOutputStream out = new FileOutputStream(file);
-				InputStream in = Flier.getInstance().getResource("messages.yml");
-				byte[] buf = new byte[1024*1024];
-				int len = 0;
-				while ((len = in.read(buf)) > 0) {
-					out.write(buf, 0, len);
+			try (InputStream in = instance.flier.getResource("messages.yml")) {
+				if (in == null) {
+					throw new LoadingException("Could not find default messages.yml inside the plugin jar.");
 				}
-				in.close();
-				out.close();
+				Files.copy(in, file.toPath());
 			} catch (IOException e) {
-				e.printStackTrace();
+				throw new LoadingException("Could not save default messages.yml: " + e.getMessage());
 			}
 		} else {
 			// update new strings
-			YamlConfiguration def = YamlConfiguration.loadConfiguration(
-					new InputStreamReader(Flier.getInstance().getResource("messages.yml"), Charset.forName("UTF-8")));
+			YamlConfiguration def;
+			try (InputStream in = instance.flier.getResource("messages.yml")) {
+				if (in == null) {
+					throw new LoadingException("Could not find default messages.yml inside the plugin jar.");
+				}
+				def = YamlConfiguration.loadConfiguration(new InputStreamReader(in, StandardCharsets.UTF_8));
+			} catch (IOException e) {
+				throw new LoadingException("Could not read default messages.yml: " + e.getMessage());
+			}
 			YamlConfiguration cur = YamlConfiguration.loadConfiguration(file);
 			boolean changed = false;
 			for (String key : def.getKeys(true)) {
@@ -105,35 +96,32 @@ public class LangManager {
 				try {
 					cur.save(file);
 				} catch (IOException e) {
-					e.printStackTrace();
+					instance.flier.getLogger().warning("Could not update messages.yml: " + e.getMessage());
 				}
 			}
 		}
-		if (instance.api) {
-			BetonLangAPI.reloadMessages(instance.flier);
-		} else {
-			instance.lang = instance.flier.getConfig().getString("language", "en");
-			instance.messages = YamlConfiguration.loadConfiguration(file).getConfigurationSection(instance.lang);
+		instance.lang = instance.flier.getConfig().getString("language", "en");
+		ConfigurationSection section = YamlConfiguration.loadConfiguration(file).getConfigurationSection(instance.lang);
+		if (section == null) {
+			throw new LoadingException(String.format("Language '%s' is not defined in messages.yml.", instance.lang));
 		}
+		instance.messages = section;
 	}
 	
 	/**
-	 * Gets the language used by the CommandSender.
+	 * Gets the language used by the CommandSender. In single-language mode
+	 * this is always the language from config.yml.
 	 * 
 	 * @param player
 	 *            CommandSender
 	 * @return the language used
 	 */
 	public static String getLanguage(CommandSender player) {
-		if (instance.api) {
-			return player instanceof Player ? BetonLangAPI.getLanguage((Player) player) : instance.lang;
-		} else {
-			return instance.lang;
-		}
+		return instance.lang;
 	}
 
 	/**
-	 * Returns the message in the language this player uses in the Game.
+	 * Returns the message for this player.
 	 * 
 	 * @param player
 	 *            player for whom the message needs to be translated
@@ -148,7 +136,7 @@ public class LangManager {
 	}
 	
 	/**
-	 * Returns the message in this player's language.
+	 * Returns the message for this CommandSender.
 	 * 
 	 * @param player
 	 *            CommandSender for whom the message needs to be translated
@@ -163,10 +151,12 @@ public class LangManager {
 	}
 	
 	/**
-	 * Returns the message in specified language.
+	 * Returns the message in the specified language. In single-language mode
+	 * the lang argument is only used for logging, the configured language is
+	 * always used.
 	 * 
 	 * @param lang
-	 *            language to which the message needs to be translated
+	 *            language name (used for logging only)
 	 * @param message
 	 *            message name
 	 * @param variables
@@ -174,12 +164,11 @@ public class LangManager {
 	 * @return the message string
 	 */
 	public static String getMessage(String lang, String message, Object... variables) {
-		String string;
-		if (instance.api) {
-			string = BetonLangAPI.getMessage(lang, instance.flier, message);
-		} else {
-			string = instance.messages.getString(message);
+		if (instance.messages == null) {
+			instance.flier.getLogger().warning("LangManager used before it was reloaded.");
+			return "";
 		}
+		String string = instance.messages.getString(message);
 		if (string == null) {
 			instance.flier.getLogger()
 					.warning(String.format("Message '%s' in language '%s' is not defined.", message, lang));

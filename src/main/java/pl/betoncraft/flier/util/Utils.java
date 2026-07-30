@@ -176,21 +176,12 @@ public class Utils {
 	 * 
 	 * @param player
 	 */
-	@SuppressWarnings("deprecation")
 	public static void clearPlayer(Player player) {
 		player.getInventory().clear();
 		player.setGameMode(GameMode.SURVIVAL);
-		try {
-			player.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(
-					player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getDefaultValue());
-		} catch (NoSuchMethodError e) {
-			player.resetMaxHealth();
-		}
-		try {
-			player.setHealth(player.getAttribute(Attribute.GENERIC_MAX_HEALTH).getValue());
-		} catch (NoSuchMethodError e) {
-			player.setHealth(player.getMaxHealth());
-		}
+		player.getAttribute(Attribute.MAX_HEALTH).setBaseValue(
+				player.getAttribute(Attribute.MAX_HEALTH).getDefaultValue());
+		player.setHealth(player.getAttribute(Attribute.MAX_HEALTH).getValue());
 		player.setExp(0);
 		player.setLevel(0);
 		player.setExhaustion(0);
@@ -205,9 +196,7 @@ public class Utils {
 		player.setVelocity(new Vector());
 		player.setFoodLevel(20);
 		player.setGlowing(false);
-		try {
-			player.setGravity(true);
-		} catch (NoSuchMethodError e) {}
+		player.setGravity(true);
 		player.setInvulnerable(false);
 		player.setSaturation(20);
 		for (PotionEffectType type : player.getActivePotionEffects().stream()

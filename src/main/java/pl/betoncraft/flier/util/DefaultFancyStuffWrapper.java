@@ -23,109 +23,72 @@
  */
 package pl.betoncraft.flier.util;
 
-import org.bukkit.Bukkit;
+import java.time.Duration;
+
 import org.bukkit.entity.Player;
 
-import com.connorlinfoot.bountifulapi.BountifulAPI;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.title.Title;
+import net.kyori.adventure.title.Title.Times;
 
-import pl.betoncraft.flier.api.Flier;
 import pl.betoncraft.flier.api.core.FancyStuffWrapper;
 
 /**
- * Default implementation of FancyStuffWrapper.
+ * Default implementation of FancyStuffWrapper. Since the migration to Paper,
+ * titles, action bar and tab list are handled natively through the Adventure
+ * API - no external plugins are required.
  *
  * @author Jakub Sapalski
  */
 public class DefaultFancyStuffWrapper implements FancyStuffWrapper {
 	
-	private Plugin titlePlugin = Plugin.None;
-	private Plugin actionBarPlugin = Plugin.None;
-	private Plugin tabListPlugin = Plugin.None;
-	
-	private enum Plugin {
-		None, BountifulAPI
-	}
+	private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
 	public DefaultFancyStuffWrapper() {
-		if (Bukkit.getPluginManager().isPluginEnabled("BountifulAPI")) {
-			if (titlePlugin == Plugin.None) titlePlugin = Plugin.BountifulAPI;
-			if (actionBarPlugin == Plugin.None) actionBarPlugin = Plugin.BountifulAPI;
-			if (tabListPlugin == Plugin.None) tabListPlugin = Plugin.BountifulAPI;
-		}
-		// log integrations
-		if (titlePlugin != Plugin.None) {
-			Flier.getInstance().getLogger().info(String.format("Using %s for displaying titles.", titlePlugin));
-		}
-		if (actionBarPlugin != Plugin.None) {
-			Flier.getInstance().getLogger().info(String.format("Using %s for managing action bar.", actionBarPlugin));
-		}
-		if (tabListPlugin != Plugin.None) {
-			Flier.getInstance().getLogger().info(String.format("Using %s for setting tab list headers.", tabListPlugin));
-		}
 	}
 	
 	@Override
 	public void sendTitle(Player player, String title, String sub, int fadeIn, int stay, int fadeOut) {
-		switch (titlePlugin) {
-		case BountifulAPI:
-			if (fadeIn + stay + fadeOut <= 0) {
-				fadeIn = 20;
-				stay = 100;
-				fadeOut = 20;
-			}
-			BountifulAPI.sendTitle(player, fadeIn, stay, fadeOut, title, sub);
-			break;
-		case None:
-			// dispatch a regular command, it will be displayed in the console
-			String timing = fadeIn + stay + fadeOut <= 0 ?
-					null : String.format("title %s times %d %d %d", player.getName(), fadeIn, stay, fadeOut);
-			String subTitle = sub == null ?
-					null : String.format("title %s subtitle {\"text\":\"%s\"}", player.getName(), sub);
-			String mainTitle = String.format("title %s title {\"text\":\"%s\"}", player.getName(), title);
-			if (timing != null) Bukkit.dispatchCommand(Bukkit.getConsoleSender(), timing);
-			if (subTitle != null) Bukkit.dispatchCommand(Bukkit.getConsoleSender(), subTitle);
-			Bukkit.dispatchCommand(Bukkit.getConsoleSender(), mainTitle);
-			break;
+		if (fadeIn + stay + fadeOut <= 0) {
+			fadeIn = 20;
+			stay = 100;
+			fadeOut = 20;
 		}
+		Component titleComponent = LEGACY.deserialize(title);
+		Component subComponent = sub == null ? Component.empty() : LEGACY.deserialize(sub);
+		Times times = Times.times(
+				Duration.ofMillis(fadeIn * 50L),
+				Duration.ofMillis(stay * 50L),
+				Duration.ofMillis(fadeOut * 50L));
+		player.showTitle(Title.title(titleComponent, subComponent, times));
 	}
 	
 	@Override
 	public void sendActionBar(Player player, String message) {
-		switch (actionBarPlugin) {
-		case BountifulAPI:
-			BountifulAPI.sendActionBar(player, message);
-			break;
-		case None:
-			// can't update action bar in Spigot
-			break;
-		}
+		player.sendActionBar(LEGACY.deserialize(message));
 	}
 	
 	@Override
 	public void setTabList(Player player, String header, String footer) {
-		switch (tabListPlugin) {
-		case BountifulAPI:
-			BountifulAPI.sendTabTitle(player, header, footer);
-			break;
-		case None:
-			// can't update tab list in Spigot
-			break;
-		}
+		Component headerComponent = header == null ? Component.empty() : LEGACY.deserialize(header);
+		Component footerComponent = footer == null ? Component.empty() : LEGACY.deserialize(footer);
+		player.sendPlayerListHeaderAndFooter(headerComponent, footerComponent);
 	}
 	
 	@Override
 	public boolean hasTitleHandler() {
-		return titlePlugin != Plugin.None;
+		return true;
 	}
 	
 	@Override
 	public boolean hasActionBarHandler() {
-		return actionBarPlugin != Plugin.None;
+		return true;
 	}
 	
 	@Override
 	public boolean hasTabListHandler() {
-		return tabListPlugin != Plugin.None;
+		return true;
 	}
 	
 }
