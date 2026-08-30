@@ -27,7 +27,7 @@ get_hit:
 explode_particle:
   type: particle
   event_type: killed
-  particle: explosion huge
+  particle: explosion_emitter
   amount: 3
   offset: 1.5
 explode_sound:
@@ -41,10 +41,10 @@ spawn_particle_blue:                                # this is example of tricky 
   event_type: spawn                                 # displays particles when players spawn
   matchers:                                         #
     color: blue                                     # matcher for the blue team
-  particle: redstone                                # redstone is weird, Mojang probably wanted to troll us with it
+  particle: dust                                    # dust (was redstone in 1.12, now needs data)
   count: 250                                        # server-side spawning multiple particles, slower performance
   manual_offset: 1                                  # range around the player for server-side spawning
-  amount: 0                                         # when amount is 0, offset changes the color of redstone
+  amount: 0                                         # when amount is 0, offset changes the color of dust
   offset_x: 0.001                                   # Red (0-1), can't be exactly 0 or 1 or colors will get randomized
   offset_y: 0.001                                   # Green, as above
   offset_z: 0.999                                   # Blue, as above
@@ -54,7 +54,7 @@ spawn_particle_red:
   event_type: spawn
   matchers:
     color: red
-  particle: redstone
+  particle: dust
   count: 250
   manual_offset: 1
   amount: 0
@@ -86,7 +86,7 @@ engine_smoke:
   event_type: engine
   matchers:
     wings_health_ratio: "<(0.5)"
-  particle: smoke large 
+  particle: large_smoke
   amount: 20
   offset: 0.2
   speed: 0.1

@@ -26,6 +26,7 @@ package pl.betoncraft.flier.effect;
 import java.util.Optional;
 import java.util.Random;
 
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.configuration.ConfigurationSection;
@@ -95,7 +96,17 @@ public class ParticleEffect extends DefaultEffect {
 			loc.add(manualOffsetX * random.nextGaussian(),
 					manualOffsetY * random.nextGaussian(),
 					manualOffsetZ * random.nextGaussian());
-			player.get().getPlayer().getWorld().spawnParticle(particle, loc, amount, offsetX, offsetY, offsetZ, speed);
+			// DUST (formerly REDSTONE) requires a DustOptions data object;
+			// use offsetX/Y/Z (0-1) as RGB color when amount is 0 (legacy color mode)
+			if (particle == Particle.DUST) {
+				int red = (int) Math.max(0, Math.min(255, offsetX * 255));
+				int green = (int) Math.max(0, Math.min(255, offsetY * 255));
+				int blue = (int) Math.max(0, Math.min(255, offsetZ * 255));
+				Particle.DustOptions options = new Particle.DustOptions(Color.fromRGB(red, green, blue), 1.0f);
+				player.get().getPlayer().getWorld().spawnParticle(particle, loc, 1, 0, 0, 0, 0, options);
+			} else {
+				player.get().getPlayer().getWorld().spawnParticle(particle, loc, amount, offsetX, offsetY, offsetZ, speed);
+			}
 		}
 	}
 

@@ -55,13 +55,16 @@ public abstract class SoundEffect extends DefaultEffect {
 	
 	/**
 	 * Loads a Sound by name, supporting both the legacy enum-style names
-	 * (ENTITY_PLAYER_LEVELUP) and the modern key-style names
-	 * (entity.player.levelup).
+	 * (ENTITY_PLAYER_LEVELUP), the old space-separated names (block anvil place)
+	 * and the modern key-style names (entity.player.levelup).
 	 */
 	private Sound loadSound(ConfigurationSection section) throws LoadingException {
 		String name = loader.loadString(SOUND);
-		// normalize: lowercase, underscores to dots (entity.player.levelup)
-		String key = name.toLowerCase().replace('_', '.');
+		// normalize: lowercase, underscores/spaces to dots (block anvil place -> block.anvil.place)
+		String key = name.toLowerCase().replace('_', '.').replace(' ', '.');
+		if (key.startsWith("minecraft:")) {
+			key = key.substring("minecraft:".length());
+		}
 		Sound sound = Registry.SOUNDS.get(NamespacedKey.minecraft(key));
 		if (sound == null) {
 			throw new LoadingException(String.format("Sound '%s' does not exist.", name));

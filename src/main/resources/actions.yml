@@ -7,7 +7,7 @@
 
 balancedShot:
   type: particleGun         # type of the Action
-  particle: smoke normal    # particle used as a bullet
+  particle: smoke           # particle used as a bullet
   amount: 10                # particle settings
   offset: 0.1               #
   speed: 0.01               #
@@ -64,7 +64,7 @@ strongWing:
   amount: -900
 fastShot:
   type: particleGun
-  particle: crit magic
+  particle: enchanted_hit
   amount: 10
   offset: 0.1
   speed: 0.01
